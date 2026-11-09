@@ -20,19 +20,22 @@ public class CartRepository {
     public void saveAll(List<ShoppingCart> carts) throws IOException {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
             for (ShoppingCart cart : carts) {
-                // Megkülönböztetjük a kocsi típusát: STANDARD vagy HEAVY
                 String type = (cart instanceof HeavyDutyCart) ? "HEAVY" : "STANDARD";
 
-                // Sor formátuma: TÍPUS;ID;KEREKEK_KOPÁSAI_VESSZŐVEL_SEPARÁLVA
+                // Kerekek adatainak összefűzése: wearLevel:steeringAccuracy (pl. 15.0:90.0,20.0:85.0)
                 StringBuilder wheelsData = new StringBuilder();
                 List<Wheel> wheels = cart.getWheels();
                 for (int i = 0; i < wheels.size(); i++) {
-                    wheelsData.append(wheels.get(i).getWearPercentage());
+                    Wheel w = wheels.get(i);
+                    wheelsData.append(w.getWearLevel())
+                            .append(":")
+                            .append(w.getSteeringAccuracy());
                     if (i < wheels.size() - 1) {
                         wheelsData.append(",");
                     }
                 }
 
+                // Sor formátuma: TÍPUS;ID;KERÉK_ADATOK
                 writer.write(String.format("%s;%s;%s", type, cart.getId(), wheelsData.toString()));
                 writer.newLine();
             }
@@ -45,7 +48,7 @@ public class CartRepository {
         File file = new File(filePath);
 
         if (!file.exists()) {
-            return loadedCarts; // Ha még nem létezik a fájl, üres listát adunk vissza
+            return loadedCarts; // Ha még nincs fájl, üres listát adunk vissza
         }
 
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
@@ -58,12 +61,16 @@ public class CartRepository {
 
                 String type = parts[0];
                 String id = parts[1];
-                String[] wearStrings = parts[2].split(",");
+                String[] wheelPairs = parts[2].split(",");
 
                 List<Wheel> wheels = new ArrayList<>();
-                for (String wearStr : wearStrings) {
-                    double wear = Double.parseDouble(wearStr);
-                    wheels.add(new Wheel(wear));
+                for (String pair : wheelPairs) {
+                    String[] values = pair.split(":");
+                    if (values.length == 2) {
+                        double wear = Double.parseDouble(values[0]);
+                        double accuracy = Double.parseDouble(values[1]);
+                        wheels.add(new Wheel(wear, accuracy));
+                    }
                 }
 
                 ShoppingCart cart;
